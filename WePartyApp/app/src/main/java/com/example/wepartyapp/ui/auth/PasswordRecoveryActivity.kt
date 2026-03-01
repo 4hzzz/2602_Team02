@@ -110,6 +110,7 @@ fun PasswordRecoveryScreenUI(
                     return@Button
                 }
 
+                // Send reset email through Firebase backend
                 auth.sendPasswordResetEmail(cleanedEmail)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
