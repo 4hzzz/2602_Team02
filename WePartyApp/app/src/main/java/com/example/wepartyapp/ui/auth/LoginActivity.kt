@@ -11,14 +11,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -30,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,32 +61,36 @@ class LoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         auth = FirebaseAuth.getInstance()
 
         setContent {
             LoginScreenUI(
-                onLoginClick = { emailInput, passwordInput ->
+                onLoginClick = { emailInput, passwordInput, setLoading ->
                     val email = emailInput.trim()
                     val password = passwordInput.trim()
 
-                    // Basic validation (prevents dumb "invalid" issues)
+                    // Basic validation
                     if (email.isEmpty() || password.isEmpty()) {
                         Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show()
+                        setLoading(false)
                         return@LoginScreenUI
                     }
 
                     if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                         Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show()
+                        setLoading(false)
                         return@LoginScreenUI
                     }
 
                     auth.signInWithEmailAndPassword(email, password)
                         .addOnCompleteListener(this) { task ->
+                            setLoading(false)
+
                             if (task.isSuccessful) {
                                 startActivity(Intent(this, MainActivity::class.java))
                                 finish()
                             } else {
-                                // Show Firebase's real message if available
                                 val msg = task.exception?.localizedMessage ?: "Authentication failed."
                                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                             }
@@ -103,12 +109,13 @@ class LoginActivity : ComponentActivity() {
 
 @Composable
 fun LoginScreenUI(
-    onLoginClick: (String, String) -> Unit,
+    onLoginClick: (String, String, (Boolean) -> Unit) -> Unit,
     onNavigateToSignUp: () -> Unit,
     onNavigateToForgotPassword: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -119,7 +126,6 @@ fun LoginScreenUI(
         verticalArrangement = Arrangement.Center
     ) {
 
-        // Logo (kept exactly)
         Image(
             painter = painterResource(id = R.drawable.app_logo),
             contentDescription = "WeParty Logo",
@@ -139,6 +145,7 @@ fun LoginScreenUI(
         TextField(
             value = email,
             onValueChange = { email = it },
+            enabled = !isLoading,
             placeholder = { Text("Email") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier
@@ -156,6 +163,7 @@ fun LoginScreenUI(
         TextField(
             value = password,
             onValueChange = { password = it },
+            enabled = !isLoading,
             placeholder = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -171,7 +179,6 @@ fun LoginScreenUI(
             )
         )
 
-        // Forgot Password link (new)
         Text(
             text = "Forgot password?",
             color = Color(0xFFFF4081),
@@ -179,14 +186,22 @@ fun LoginScreenUI(
             modifier = Modifier
                 .align(Alignment.End)
                 .padding(bottom = 16.dp)
-                .clickable { onNavigateToForgotPassword() }
+                .clickable(enabled = !isLoading) { onNavigateToForgotPassword() }
         )
 
         Button(
-            onClick = { onLoginClick(email, password) },
+            onClick = {
+                isLoading = true
+                onLoginClick(email, password) { isLoading = it }
+            },
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4081))
         ) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Text("Log In", color = Color.White)
         }
 
@@ -196,7 +211,7 @@ fun LoginScreenUI(
             fontSize = 16.sp,
             modifier = Modifier
                 .padding(top = 16.dp)
-                .clickable { onNavigateToSignUp() }
+                .clickable(enabled = !isLoading) { onNavigateToSignUp() }
         )
     }
 }
